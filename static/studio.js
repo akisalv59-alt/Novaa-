@@ -42,7 +42,7 @@ function render() {
     row.append(img,info,node('span',money(n*p.price_cents)));lines.append(row);total+=n*p.price_cents;count+=n;
   }
   if(!count)lines.append(node('p',ready?'Votre panier est vide.':'Chargement du catalogue…'));
-  byId('qty').textContent=count;byId('total').textContent=money(total);byId('draft').disabled=!count||saving;
+  byId('qty').textContent=count;byId('total').textContent=money(total);showQuote();
 }
 function openBag(){if(!bag.open)bag.showModal();}
 byId('bag-open').onclick=openBag;byId('bag-close').onclick=()=>bag.close();
@@ -54,11 +54,32 @@ async function init(){
   catch {byId('lines').textContent='Catalogue indisponible. Rechargez la page.';}
 }
 window.addEventListener('storage',e=>{if(e.key===key&&ready){readCart();render();}});
+let quoteVersion=0;
+function cartItems(){return Object.entries(cart).map(([id,quantity])=>({product_id:+id,quantity}));}
+async function showQuote(){
+  const version=++quoteVersion,items=cartItems();
+  byId('draft').disabled=true;
+  if(!items.length){byId('quote').textContent='Simulation en France. Aucun débit réel.';return;}
+  try{
+    const response=await fetch('/api/cart/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})});
+    if(!response.ok)throw Error();const q=await response.json();
+    if(version!==quoteVersion)return;
+    byId('quote').textContent='Simulation France · Livraison '+money(q.shipping_cents)+' · Total '+money(q.total_cents)+(q.checkout_enabled?' · Aucun débit réel.':' · Stripe test en cours de configuration.');
+    byId('draft').disabled=!q.checkout_enabled||saving;
+  }catch{if(version===quoteVersion)byId('quote').textContent='Devis indisponible. Réessayez.';}
+}
 byId('draft').onclick=async()=>{
-  if(saving)return;saving=true;render();byId('feedback').textContent='Enregistrement…';
-  try {const r=await fetch('/api/orders/demo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:Object.entries(cart).map(([id,quantity])=>({product_id:+id,quantity}))})});
-    if(!r.ok)throw Error();const data=await r.json();byId('feedback').textContent='Brouillon enregistré · '+data.order_id;
-  }catch{byId('feedback').textContent='Enregistrement impossible. Réessayez.';}finally{saving=false;render();}
+  if(saving||byId('draft').disabled)return;
+  saving=true;byId('draft').disabled=true;
+  try{
+    const items=cartItems(),body=JSON.stringify(items);
+    let saved=JSON.parse(sessionStorage.getItem('nova_checkout_attempt')||'null');
+    if(!saved||saved.body!==body){saved={body,id:crypto.randomUUID()};sessionStorage.setItem('nova_checkout_attempt',JSON.stringify(saved));}
+    const r=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,attempt:saved.id})});
+    if(r.status===409)sessionStorage.removeItem('nova_checkout_attempt');
+    const data=await r.json();if(!r.ok)throw Error(data.detail||'Paiement indisponible.');
+    location.assign(data.url);
+  }catch(e){byId('feedback').textContent=e.message;saving=false;showQuote();}
 };
 if(byId('grid')){
   const cards=Array.from(byId('grid').children);let category='';
