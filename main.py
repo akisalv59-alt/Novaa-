@@ -9,17 +9,10 @@ from pydantic import BaseModel, Field
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / 'store.db'
-app = FastAPI(title='NOVA STORE API', version='3.0.0')
+app = FastAPI(title='NOVA STORE API', version='4.0.0')
 app.mount('/static', StaticFiles(directory=BASE / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE / 'templates')
-PRODUCTS = [
- dict(id=1,slug='lumi-led',name='LUMI LED',category='Maison',price_cents=2490,emoji='💡',tag='Best-seller',description='Barre LED magnétique à détecteur de mouvement, modèle à confirmer auprès du fournisseur.',details=['Éclairage pour placards et couloirs','Installation magnétique selon modèle','Autonomie et dimensions à vérifier']),
- dict(id=2,slug='flex-stand',name='FLEX STAND',category='Tech',price_cents=1990,emoji='📱',tag='Tendance',description='Support de smartphone pliable pour bureau.',details=['Format pliable','Angle ajustable selon modèle','Compatibilité à vérifier']),
- dict(id=3,slug='cable-kit',name='CABLE KIT',category='Tech',price_cents=1490,emoji='🔌',tag='Pratique',description='Kit de clips pour organiser les câbles.',details=['Rangement de bureau','Fixation selon modèle','Contenu exact à confirmer']),
- dict(id=4,slug='auto-clean',name='AUTO CLEAN',category='Auto',price_cents=2290,emoji='🚘',tag='Nouveau',description='Kit de brosses de nettoyage intérieur automobile.',details=['Pour surfaces intérieures','Accessoires à confirmer','Tester sur une petite zone']),
- dict(id=5,slug='travel-pouch',name='TRAVEL POUCH',category='Lifestyle',price_cents=1790,emoji='🎒',tag='Voyage',description='Pochette compacte pour accessoires de voyage.',details=['Organisation des accessoires','Format compact','Dimensions à confirmer']),
- dict(id=6,slug='desk-mat',name='DESK MAT',category='Maison',price_cents=2990,emoji='🖥️',tag='Design',description='Sous-main de bureau minimaliste.',details=['Protège le bureau','Surface confortable','Matière à confirmer']),
-]
+PRODUCTS = [p for p in json.loads((BASE / 'catalog.json').read_text(encoding='utf-8')) if p.get('visible', True)]
 BY_ID = {p['id']:p for p in PRODUCTS}
 BY_SLUG = {p['slug']:p for p in PRODUCTS}
 
@@ -94,4 +87,15 @@ def create_demo_order(cart:CartRequest):
 
 @app.get('/api/status')
 def status():
-    return {'version':'3.0.0','mode':'demo','payment_enabled':False,'fulfillment_enabled':False,'products':len(PRODUCTS)}
+    return {'version':'4.0.0','mode':'demo','payment_enabled':False,'fulfillment_enabled':False,'products':len(PRODUCTS)}
+
+@app.get('/admin', response_class=HTMLResponse)
+def admin(request: Request):
+    response = templates.TemplateResponse(request=request, name='admin.html', context={})
+    response.headers.update({
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.github.com; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"
+    })
+    return response

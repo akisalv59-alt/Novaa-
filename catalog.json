@@ -1,0 +1,98 @@
+[
+  {
+    "id": 1,
+    "slug": "lumi-led",
+    "name": "LUMI LED",
+    "category": "Maison",
+    "price_cents": 2490,
+    "emoji": "💡",
+    "tag": "",
+    "description": "Lampe de placard à détecteur de mouvement.",
+    "details": [
+      "Éclairage intérieur",
+      "Usage envisagé : placards et rangements"
+    ],
+    "image": "",
+    "visible": true
+  },
+  {
+    "id": 2,
+    "slug": "flex-stand",
+    "name": "FLEX STAND",
+    "category": "Tech",
+    "price_cents": 1990,
+    "emoji": "📱",
+    "tag": "",
+    "description": "Support pliable pour smartphone.",
+    "details": [
+      "Accessoire de bureau",
+      "Pour consulter un écran posé sur une table"
+    ],
+    "image": "",
+    "visible": true
+  },
+  {
+    "id": 3,
+    "slug": "cable-kit",
+    "name": "CABLE KIT",
+    "category": "Tech",
+    "price_cents": 1490,
+    "emoji": "🔌",
+    "tag": "",
+    "description": "Clips de rangement pour câbles.",
+    "details": [
+      "Organisation du poste de travail",
+      "Quantité par lot à confirmer"
+    ],
+    "image": "",
+    "visible": true
+  },
+  {
+    "id": 4,
+    "slug": "auto-clean",
+    "name": "AUTO CLEAN",
+    "category": "Auto",
+    "price_cents": 2290,
+    "emoji": "🚘",
+    "tag": "",
+    "description": "Brosses de nettoyage pour habitacle.",
+    "details": [
+      "Pour les recoins et les aérations",
+      "Composition du kit à confirmer"
+    ],
+    "image": "",
+    "visible": true
+  },
+  {
+    "id": 5,
+    "slug": "travel-pouch",
+    "name": "TRAVEL POUCH",
+    "category": "Lifestyle",
+    "price_cents": 1790,
+    "emoji": "🎒",
+    "tag": "",
+    "description": "Pochette de voyage pour accessoires.",
+    "details": [
+      "Organisation des câbles et petits appareils",
+      "Dimensions à confirmer"
+    ],
+    "image": "",
+    "visible": true
+  },
+  {
+    "id": 6,
+    "slug": "desk-mat",
+    "name": "DESK MAT",
+    "category": "Maison",
+    "price_cents": 2990,
+    "emoji": "🖥️",
+    "tag": "",
+    "description": "Sous-main pour clavier et souris.",
+    "details": [
+      "Accessoire de bureau",
+      "Format et finition à confirmer"
+    ],
+    "image": "",
+    "visible": true
+  }
+]
