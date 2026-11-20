@@ -1,6 +1,8 @@
 from pathlib import Path
-from contextlib import contextmanager
-import sqlite3, json, secrets
+
+import json
+from uuid import UUID
+import checkout
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 BASE = Path(__file__).resolve().parent
-DB = BASE / 'store.db'
+
 app = FastAPI(title='NOVA STORE API', version='4.0.0')
 app.mount('/static', StaticFiles(directory=BASE / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE / 'templates')
@@ -16,21 +18,8 @@ PRODUCTS = [p for p in json.loads((BASE / 'catalog.json').read_text(encoding='ut
 BY_ID = {p['id']:p for p in PRODUCTS}
 BY_SLUG = {p['slug']:p for p in PRODUCTS}
 
-@contextmanager
-def connect():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
-    try:
-        yield con
-        con.commit()
-    finally:
-        con.close()
-
-def init_db():
-    with connect() as con:
-        con.execute('CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, status TEXT NOT NULL, total_cents INTEGER NOT NULL, items_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
-
-init_db()
+app.include_router(checkout.router)
+app.router.add_event_handler('startup', checkout.initialize)
 
 class CartItem(BaseModel):
     product_id: int
@@ -48,7 +37,7 @@ def calculate(items):
     if sum(totals.values()) > 20 or any(q > 10 for q in totals.values()):
         raise HTTPException(400, 'Limite : 10 unités par produit et 20 au total')
     lines = [{'product_id':pid,'name':BY_ID[pid]['name'],'quantity':qty,'unit_price_cents':BY_ID[pid]['price_cents'],'line_total_cents':qty*BY_ID[pid]['price_cents']} for pid,qty in totals.items()]
-    return {'currency':'EUR','items':lines,'subtotal_cents':sum(x['line_total_cents'] for x in lines),'shipping_cents':None,'total_cents':None,'checkout_enabled':False,'message':'Frais de livraison et fiscalité à déterminer. Aucun paiement réel disponible.'}
+    return {'currency':'EUR','items':lines,'subtotal_cents':sum(x['line_total_cents'] for x in lines),'shipping_cents':checkout.SHIPPING,'total_cents':sum(x['line_total_cents'] for x in lines)+checkout.SHIPPING,'checkout_enabled':checkout.configured(),'message':'Simulation France uniquement. Aucun débit réel.'}
 
 @app.get('/', response_class=HTMLResponse)
 def home(request:Request):
@@ -77,17 +66,26 @@ def get_product(product_id:int):
 def quote(cart:CartRequest):
     return calculate(cart.items)
 
-@app.post('/api/orders/demo',status_code=201)
-def create_demo_order(cart:CartRequest):
-    result = calculate(cart.items)
-    oid = 'DEMO-'+secrets.token_hex(6).upper()
-    with connect() as con:
-        con.execute('INSERT INTO orders (id,status,total_cents,items_json) VALUES (?,?,?,?)',(oid,'draft_demo',result['subtotal_cents'],json.dumps(result['items'])))
-    return {'order_id':oid,'status':'draft_demo','subtotal_cents':result['subtotal_cents'],'message':'Brouillon enregistré localement. Aucune vente, aucun paiement ni livraison.'}
+class CheckoutRequest(CartRequest):
+    attempt:UUID
+
+@app.post('/api/checkout')
+def start_checkout(cart:CheckoutRequest,request:Request):
+    return checkout.session_for(cart.attempt,calculate(cart.items),request.client.host if request.client else 'unknown')
+
+@app.get('/commande/{result}',response_class=HTMLResponse)
+def receipt(request:Request,result:str,session_id:str=''):
+    if result not in ('confirmation','annulation'):raise HTTPException(404)
+    confirmed=False
+    if result=='confirmation' and session_id.startswith('cs_test_') and len(session_id)<256 and checkout.configured():
+        with checkout.database() as con:
+            row=con.execute('SELECT state FROM checkout_orders WHERE session_id=%s',(session_id,)).fetchone()
+            confirmed=bool(row and row['state'] in ('paid','shipped','delivered'))
+    return templates.TemplateResponse(request=request,name='receipt.html',context={'cancelled':result=='annulation','confirmed':confirmed},headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'})
 
 @app.get('/api/status')
 def status():
-    return {'version':'4.0.0','mode':'demo','payment_enabled':False,'fulfillment_enabled':False,'products':len(PRODUCTS)}
+    return {'version':'4.0.0','mode':'test','test_checkout_configured':checkout.configured(),'payment_enabled':False,'fulfillment_enabled':False,'products':len(PRODUCTS)}
 
 @app.get('/admin', response_class=HTMLResponse)
 def admin(request: Request):
